@@ -50,7 +50,7 @@ button{cursor:pointer}
 h2{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2em;color:var(--faint);margin:34px 0 12px}
 
 /* tonight cards */
-.stays{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(150px,1fr);gap:12px;overflow-x:auto;margin:0 -18px;padding:2px 18px 6px;scrollbar-width:none}
+.stays{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(142px,1fr);gap:12px;overflow-x:auto;margin:0 -18px;padding:2px 18px 6px;scrollbar-width:none}
 .stays::-webkit-scrollbar{display:none}
 .stay{background:var(--panel);border:0;border-radius:var(--r);padding:14px;text-align:left;min-height:118px;display:flex;flex-direction:column}
 .stay b{font-size:16px;font-weight:500}
@@ -65,14 +65,23 @@ h2{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2em;c
 .month button{background:var(--panel);border:0;border-radius:999px;width:40px;height:40px;font-size:18px}
 .month .today{width:auto;padding:0 14px;font-size:13px;font-weight:500}
 table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed}
-th{position:sticky;top:0;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);color:var(--faint);font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;padding:10px 2px;z-index:2;border-bottom:1px solid var(--ink)}
+th{background:#fff;color:var(--faint);font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;padding:10px 2px;z-index:2;border-bottom:1px solid var(--ink)}
 th:first-child{text-align:left}
-th:first-child,td:first-child{width:60px}
+th:first-child,td:first-child{width:58px;position:sticky;left:0;background:#fff;z-index:1}
+.grid{overflow-x:auto;margin:0 -18px;padding:0 18px;scrollbar-width:thin}
+.grid table{min-width:620px}
+tr.grp th{border-bottom:0;padding:4px 2px 0;color:var(--ink);font-size:11px}
+.sep{border-left:1px solid var(--line)}
+td.sep{padding-left:4px}
+.ghead{display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px;font-size:13px;font-weight:500}
+.ghead button{border:0;background:var(--panel);border-radius:999px;padding:7px 14px;font-size:12px;font-weight:500}
 td{height:40px;border-bottom:1px solid var(--line);padding:2px;font-size:12px;overflow:hidden}
 td:first-child{padding:0 4px 0 0;color:var(--faint);white-space:nowrap;font-size:12px}
 td:first-child b{color:var(--ink);font-weight:500;font-size:15px;margin-right:3px}
 tr.we td:first-child b{font-weight:700}
-tr.past{opacity:.38}
+tr.past td{color:#c4c4c4}
+tr.past td:first-child b{color:#c4c4c4}
+tr.past td button{opacity:.4}
 tr.now td{border-bottom-color:var(--ink)}
 tr.now td:first-child,tr.now td:first-child b{color:var(--accent)}
 td button{display:block;width:100%;height:35px;border:0;border-radius:8px;background:transparent;padding:0 7px;text-align:left;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -150,11 +159,23 @@ const CONFIG = {
 
 const HOUSE = 'Just Rest Inn Too', PLACE = 'Manyana';
 const UNITS = [
-  {id:'bed1', name:'Bedroom 1', short:'Bed 1', beds:'Queen'},
-  {id:'bed2', name:'Bedroom 2', short:'Bed 2', beds:'Queen'},
-  {id:'bed3', name:'Bedroom 3', short:'Bed 3', beds:'Queen'},
-  {id:'shed', name:'The Shed',  short:'Shed',  beds:'2 queens + 2 double bunks'}
+  {id:'bed1', group:'House', name:'Bedroom 1',    short:'Bed 1',   beds:'Queen'},
+  {id:'bed2', group:'House', name:'Bedroom 2',    short:'Bed 2',   beds:'Queen'},
+  {id:'bed3', group:'House', name:'Bedroom 3',    short:'Bed 3',   beds:'Queen'},
+  {id:'shq1', group:'Shed',  name:'Shed Queen 1', short:'Queen 1', beds:'Queen bed in the shed'},
+  {id:'shq2', group:'Shed',  name:'Shed Queen 2', short:'Queen 2', beds:'Queen bed in the shed'},
+  {id:'shb1', group:'Shed',  name:'Shed Bunk 1',  short:'Bunk 1',  beds:'Double bunk in the shed'},
+  {id:'shb2', group:'Shed',  name:'Shed Bunk 2',  short:'Bunk 2',  beds:'Double bunk in the shed'}
 ];
+const SHED = UNITS.filter(u=>u.group==='Shed').map(u=>u.id);
+// Bookings made before the shed was split used a single 'shed' unit: treat them as all four beds.
+const normalise = b => ({...b, units:[...new Set((b.units||[]).flatMap(u=>u==='shed'?SHED:[u]))]});
+function unitsLabel(b){
+  if(UNITS.every(u=>b.units.includes(u.id))) return 'Whole property';
+  const house=b.units.filter(u=>!SHED.includes(u)).map(unitName);
+  const shed=SHED.every(u=>b.units.includes(u))?['The whole shed']:b.units.filter(u=>SHED.includes(u)).map(unitName);
+  return [...house,...shed].join(', ');
+}
 const MAX_NIGHTS = 90;
 
 /* ---------- dates (plain YYYY-MM-DD strings, no timezone maths) ---------- */
@@ -250,7 +271,7 @@ async function sendEmail(to,b,link){
     body:JSON.stringify({service_id:e.serviceId,template_id:e.templateId,user_id:e.publicKey,template_params:{
       to_email:to, to_name:b.name, house:HOUSE, place:PLACE,
       dates:`${fmt(b.checkIn)} to ${fmt(b.checkOut)} (${n} night${n==1?'':'s'})`,
-      rooms:b.units.map(unitName).join(', '), guests:String(b.guests), notes:b.notes||'None', manage_link:link }})});
+      rooms:unitsLabel(b), guests:String(b.guests), notes:b.notes||'None', manage_link:link }})});
   if(!r.ok) throw new Error('email '+r.status+' '+await r.text());
 }
 const HUES=[200,18,150,280,42,330,95,235,0,172];
@@ -278,10 +299,11 @@ function render(){
     let tds=`<td><b>${i}</b> ${dt.toLocaleDateString('en-AU',{weekday:'short'})}</td>`;
     for(const u of UNITS){
       const b=occ.get(`${u.id}_${d}`);
-      if(!b){ tds+=`<td class="free"><button data-act="new" data-d="${d}" data-u="${u.id}" aria-label="Book ${u.name} from ${fmt(d)}">+</button></td>`; continue; }
+      const sep=u.id===SHED[0]?' sep':'';
+      if(!b){ tds+=`<td class="free${sep}"><button data-act="new" data-d="${d}" data-u="${u.id}" aria-label="Book ${u.name} from ${fmt(d)}">+</button></td>`; continue; }
       const cont = b.checkIn!==d && i!==1;
       const label = b.isBlock ? 'Blocked' : b.name;
-      tds+=`<td class="${b.isBlock?'block':''} ${cont?'cont':''}"><button data-act="detail" data-id="${esc(b.id)}" style="background:${bg(b.name)};color:${fg(b.name)}" aria-label="${esc(label)}, ${u.name}, ${fmt(d)}">${esc(label)}</button></td>`;
+      tds+=`<td class="${b.isBlock?'block':''} ${cont?'cont':''}${sep}"><button data-act="detail" data-id="${esc(b.id)}" style="background:${bg(b.name)};color:${fg(b.name)}" aria-label="${esc(label)}, ${u.name}, ${fmt(d)}">${esc(label)}</button></td>`;
     }
     rows+=`<tr class="${cls}">${tds}</tr>`;
   }
@@ -293,7 +315,7 @@ function render(){
       <i class="dot" style="background:${b.isBlock?'#aaa':solid(b.name)}"></i>
       <div><strong>${head}</strong>
       <span>${fmt(b.checkIn)} → ${fmt(b.checkOut)} · ${n} night${n==1?'':'s'}</span>
-      <span>${b.units.length===UNITS.length?'Whole property':b.units.map(unitName).map(esc).join(', ')}</span>
+      <span>${esc(unitsLabel(b))}</span>
       ${b.notes?`<em>“${esc(b.notes)}”</em>`:''}</div></button>`;
   }).join('') || `<div class="empty">Nobody's booked yet. The place is all yours.</div>`;
 
@@ -320,8 +342,10 @@ function render(){
     <div class="month"><button data-act="prev" aria-label="Previous month">‹</button>
       <strong>${title}</strong>
       <span><button class="today" data-act="today">Today</button> <button data-act="next" aria-label="Next month">›</button></span></div>
-    <table><thead><tr><th>Night</th>${UNITS.map(u=>`<th>${u.short}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
-    <div class="empty">Each row is a night. Tap + to book from that date, or a name for details. Check-out day is free for the next arrival.</div>
+    <div class="grid"><table><thead>
+      <tr class="grp"><th></th><th colspan="${UNITS.length-SHED.length}">House</th><th colspan="${SHED.length}" class="sep">Shed</th></tr>
+      <tr><th>Night</th>${UNITS.map(u=>`<th class="${u.id===SHED[0]?'sep':''}">${u.short}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="empty">Each row is a night. Swipe sideways for the shed beds. Tap + to book from that date, or a name for details. Check-out day is free for the next arrival.</div>
     <h2>Who's going down</h2>${cards}
     <footer><button data-act="owner">${owner?'Leave owner mode':'Owner'}</button></footer>
   </div>`;
@@ -352,7 +376,7 @@ function openDetail(id){
   const n=nights(b.checkIn,b.checkOut).length;
   open(`<h3>${b.isBlock?'Blocked out':esc(b.name)}</h3><dl class="kv">
     <dt>Dates</dt><dd>${fmt(b.checkIn)} → ${fmt(b.checkOut)} (${n} night${n==1?'':'s'})</dd>
-    <dt>Where</dt><dd>${b.units.map(u=>`${esc(unitName(u))}`).join(', ')}</dd>
+    <dt>Where</dt><dd>${esc(unitsLabel(b))}</dd>
     ${b.guests?`<dt>People</dt><dd>${b.guests}</dd>`:''}
     ${b.notes?`<dt>Notes</dt><dd>${esc(b.notes)}</dd>`:''}</dl>
     <div class="actions">${canEdit(b)?`<button class="btn alt" data-act="edit" data-id="${esc(b.id)}">Change</button>
@@ -372,8 +396,9 @@ function openBooking({date,unit,booking,block}={}){
     <div class="row"><div><label for="ci">Arrive</label><input id="ci" name="checkIn" type="date" required value="${ci}"></div>
       <div><label for="co">Leave</label><input id="co" name="checkOut" type="date" required value="${co}"></div></div>
     <label>${blocking?'What to block':'Where are you sleeping?'}</label>
-    <div class="units">${UNITS.map(u=>`<label class="unit" style="margin:0"><input type="checkbox" name="units" value="${u.id}" ${picked.has(u.id)?'checked':''}>
-      <div><b>${u.name}</b><small data-beds="${esc(u.beds)}">${esc(u.beds)}</small></div></label>`).join('')}</div>
+    ${['House','Shed'].map(g=>`<div class="ghead"><span>${g}</span>${g==='Shed'?`<button type="button" data-act="allshed">Whole shed</button>`:''}</div>
+    <div class="units">${UNITS.filter(u=>u.group===g).map(u=>`<label class="unit" style="margin:0"><input type="checkbox" name="units" value="${u.id}" ${picked.has(u.id)?'checked':''}>
+      <div><b>${g==='Shed'?u.short:u.name}</b><small data-beds="${esc(u.beds.replace(' in the shed',''))}">${esc(u.beds.replace(' in the shed',''))}</small></div></label>`).join('')}</div>`).join('')}
     ${blocking?'':`<label for="gs">How many people?</label><input id="gs" name="guests" type="number" inputmode="numeric" min="1" max="30" required value="${booking?.guests||2}">`}
     <label for="nt">${blocking?'Reason (optional)':'Notes (optional)'}</label>
     <textarea id="nt" name="notes" maxlength="200" placeholder="${blocking?'e.g. painting the deck':'e.g. bringing the dog, arriving late Friday'}">${esc(booking?.notes||'')}</textarea>
@@ -406,7 +431,7 @@ async function submitBooking(f){
   const fail=m=>{ err.textContent=m; return };
   if(!ci||!co||co<=ci) return fail('Leave date needs to be after the arrive date.');
   if(nights(ci,co).length>MAX_NIGHTS) return fail(`That's longer than ${MAX_NIGHTS} nights. Split it into two bookings.`);
-  if(!units.length) return fail('Pick at least one room, or the shed.');
+  if(!units.length) return fail('Pick at least one bedroom or shed bed.');
   for(const u of units){ const c=clash(u,ci,co,editing?.id); if(c) return fail(`${unitName(u)} is already taken by ${c.isBlock?'a block-out':c.name} on those dates.`); }
   const b={ name: blocking ? (editing?.name||me||'Owner') : d.get('name').trim(), units, checkIn:ci, checkOut:co,
     guests: blocking?0:Math.max(1,parseInt(d.get('guests'),10)||1), notes:(d.get('notes')||'').trim(),
@@ -450,6 +475,8 @@ document.addEventListener('click',async e=>{
   if(a==='name') openName();
   if(a==='owner') openOwner();
   if(a==='close') close();
+  if(a==='allshed'){ const boxes=[...sheet.querySelectorAll('input[name=units]')].filter(x=>SHED.includes(x.value)&&!x.disabled);
+    const all=boxes.every(x=>x.checked); boxes.forEach(x=>x.checked=!all); }
   if(a==='cancel'){ const b=bookings.find(x=>x.id===id); if(!b) return;
     if(el.dataset.sure){ el.disabled=true; try{ await store.remove(b); close(); toast('Booking cancelled'); }catch(err){ console.error(err); el.disabled=false; toast('Could not cancel. Try again.'); } }
     else { el.dataset.sure='1'; el.textContent='Tap again to confirm'; } }
@@ -467,7 +494,7 @@ async function enter(code){
   ls.set('jri_code',code); houseCode=code;
   const pin=ls.get('jri_pin'); if(pin){ try{ owner=await store.checkOwner(pin) }catch{} }
   let pending=new URLSearchParams(location.hash.slice(1)).get('m');
-  store.subscribe(async list=>{ bookings=list; render(); if(sheet.open) refreshUnits();
+  store.subscribe(async list=>{ bookings=list.map(normalise); render(); if(sheet.open) refreshUnits();
       if(pending){ const [id,t]=pending.split('.'); pending=null; const b=bookings.find(x=>x.id===id);
         history.replaceState(null,'',location.pathname+location.search+'#k='+encodeURIComponent(code));
         if(!b) toast('That booking no longer exists.');
