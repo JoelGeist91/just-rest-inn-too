@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // The document ID under /houses IS the family passcode.
+    // Nobody can list /houses, so you can only get in if you already know it.
+    function houseExists(code) {
+      return exists(/databases/$(database)/documents/houses/$(code));
+    }
+
+    match /houses/{code} {
+      allow get: if true;          // lets the app check a passcode; listing is not allowed
+
+      // The document ID under /owner IS the owner PIN. Get only, never list.
+      match /owner/{pin} {
+        allow get: if true;
+      }
+
+      match /bookings/{id} {
+        allow read, write: if houseExists(code);
+      }
+
+      // One document per room per night. Create and delete only:
+      // an existing night can never be overwritten, which is what stops double-bookings.
+      match /nights/{id} {
+        allow read, create, delete: if houseExists(code);
+      }
+    }
+  }
+}
